@@ -33,6 +33,7 @@ func Open(filename string, mode os.FileMode) (this *AOF, err error) {
 }
 
 // Write from an io.Reader .
+// It returns the id 'position' (offset:length) and error if any .
 func (this *AOF) Write(src io.Reader) (string, error) {
 	this.Lock()
 	defer this.Unlock()
