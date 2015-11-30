@@ -1,5 +1,4 @@
 // A simple concurrency safe Append-Only-File for storage purposes .
-// Author Mohammed Al Ashaal "www.alash3al.xyz"
 package aof
 
 import (
