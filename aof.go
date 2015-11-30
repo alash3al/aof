@@ -1,6 +1,4 @@
-// - A simple concurrency safe Append-Only-File for storage purposes .  
-// - By Mohammed Al Ashaal .  
-// - Under MIT License .  
+// A simple concurrency safe Append-Only-File for storage purposes  .
 package aof
 
 import (
