@@ -58,7 +58,7 @@ func (this *AOF) Read(id string) *io.SectionReader {
  	return io.NewSectionReader(this.file, offset, length)
 }
 
-// Scan the log file using a custom separator and function .
+// Scan the database using a custom separator and function .
 // The provided function has two params, data and whether we at the end or not .
 func (this *AOF) Scan(sep []byte, fn func(data []byte, atEOF bool) bool) {
 	this.file.Seek(0, 0)
@@ -85,12 +85,12 @@ func (this *AOF) Scan(sep []byte, fn func(data []byte, atEOF bool) bool) {
 	data = []byte{}
 }
 
-// Clear the contents of the file
+// Clear all data in the database .
 func (this *AOF) Clear() error {
 	return this.file.Truncate(0)
 }
 
-// Return the size of our log file .
+// Return the size of our database .
 func (this *AOF) Size() int64 {
 	this.RLock()
 	defer this.RUnlock()
