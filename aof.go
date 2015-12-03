@@ -2,6 +2,7 @@
 package aof
 
 import (
+	"encoding/hex"
 	"bytes"
 	"sync"
 	"fmt"
@@ -33,7 +34,7 @@ func Open(filename string, mode os.FileMode) (this *AOF, err error) {
 }
 
 // Write from an io.Reader .
-// It returns the id 'position' (offset:length) and error if any .
+// It returns the id 'pointer' of the inserted data and error if any .
 func (this *AOF) Put(src io.Reader) (string, error) {
 	this.Lock()
 	defer this.Unlock()
@@ -46,14 +47,19 @@ func (this *AOF) Put(src io.Reader) (string, error) {
 		return ``, err
 	}
 	this.size += int64(length)
-	return fmt.Sprintf(`%d:%d`, offset, length), nil
+	return hex.EncodeToString([]byte(fmt.Sprintf(`%d:%d`, offset, length))), nil
 }
 
-// Read the data of the position "id" .
+// Read the data of the pointer "id" .
 func (this *AOF) Get(id string) *io.SectionReader {
 	this.RLock()
 	defer this.RUnlock()
 	var offset, length int64
+	idBytes, e := hex.DecodeString(id)
+	if e != nil {
+		return nil
+	}
+	id = string(idBytes)
 	fmt.Sscanf(id, `%d:%d`, &offset, &length)
  	return io.NewSectionReader(this.file, offset, length)
 }
