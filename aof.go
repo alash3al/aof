@@ -1,4 +1,4 @@
-// A simple concurrency safe Append-Only-File for storage purposes  .
+// A simple concurrency safe AppendOnlyFile format for log-structured storage purposes .
 package aof
 
 import (
@@ -16,7 +16,7 @@ type AOF struct {
 	sync.RWMutex
 }
 
-// Create a new AOF .
+// Open an AOF datafile .
 func Open(filename string, mode os.FileMode) (this *AOF, err error) {
 	this = new(AOF)
 	this.file, err = os.OpenFile(filename, os.O_RDWR|os.O_APPEND|os.O_CREATE, mode)
@@ -34,7 +34,7 @@ func Open(filename string, mode os.FileMode) (this *AOF, err error) {
 
 // Write from an io.Reader .
 // It returns the id 'position' (offset:length) and error if any .
-func (this *AOF) Write(src io.Reader) (string, error) {
+func (this *AOF) Put(src io.Reader) (string, error) {
 	this.Lock()
 	defer this.Unlock()
 	offset := this.size
@@ -49,8 +49,8 @@ func (this *AOF) Write(src io.Reader) (string, error) {
 	return fmt.Sprintf(`%d:%d`, offset, length), nil
 }
 
-// Read the data of the id .
-func (this *AOF) Read(id string) *io.SectionReader {
+// Read the data of the position "id" .
+func (this *AOF) Get(id string) *io.SectionReader {
 	this.RLock()
 	defer this.RUnlock()
 	var offset, length int64
@@ -58,9 +58,12 @@ func (this *AOF) Read(id string) *io.SectionReader {
  	return io.NewSectionReader(this.file, offset, length)
 }
 
-// Scan the database using a custom separator and function .
+// Scan the datafile using a custom separator and function.
 // The provided function has two params, data and whether we at the end or not .
+// This function will lock the whole file till it ends .
 func (this *AOF) Scan(sep []byte, fn func(data []byte, atEOF bool) bool) {
+	this.Lock()
+	defer this.Unlock()
 	this.file.Seek(0, 0)
 	data := []byte{}
 	for {
@@ -71,12 +74,12 @@ func (this *AOF) Scan(sep []byte, fn func(data []byte, atEOF bool) bool) {
 		}
 		if e != nil || n == 0 {
 			if len(data) > 0 {
-				fn(data, true)
+				fn(bytes.Trim(data, string(sep)), true)
 			}
 			break
 		}
 		if bytes.Equal(sep, tmp) {
-			if ! fn(data, false) {
+			if ! fn(bytes.Trim(data, string(sep)), false) {
 				break
 			}
 			data = []byte{}
@@ -85,12 +88,44 @@ func (this *AOF) Scan(sep []byte, fn func(data []byte, atEOF bool) bool) {
 	data = []byte{}
 }
 
-// Clear all data in the database .
+// Scan the datafile in reverse order using a custom separator and function.
+// The provided function has two params, data and whether we at the end or not .
+// This function will lock the whole file till it ends .
+func (this *AOF) ReverseScan(sep []byte, fn func(data []byte, atEOF bool) bool) {
+	this.Lock()
+	defer this.Unlock()
+	pos := int64(0)
+	done := int64(0)
+	data := []byte{}
+	for {
+		this.file.Seek(pos, 2)
+		tmp := make([]byte, len(sep))
+		n, _ := this.file.Read(tmp)
+		pos -= int64(len(sep))
+		if n > 0 {
+			done += int64(n)
+			data = append(tmp, data ...)
+		}
+		if bytes.Equal(sep, tmp) {
+			if ! fn(bytes.Trim(data, string(sep)), false) {
+				break
+			}
+			data = []byte{}
+		}
+		if done >= this.size {
+			fn(bytes.Trim(data, string(sep)), true)
+			break
+		}
+	}
+	data = []byte{}
+}
+
+// Clear the contents of the file
 func (this *AOF) Clear() error {
 	return this.file.Truncate(0)
 }
 
-// Return the size of our database .
+// Return the size of our log file .
 func (this *AOF) Size() int64 {
 	this.RLock()
 	defer this.RUnlock()
